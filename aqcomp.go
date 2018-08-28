@@ -4,6 +4,7 @@ import (
 	"bitbucket.org/ctessum/cdf"
 	"encoding/csv"
 	"fmt"
+	"github.com/fatih/structs"
 	"io/ioutil"
 	"log"
 	"os"
@@ -27,9 +28,6 @@ func listFiles(csvFolder string) []string {
 // the indexed GEOS-Chem grid cell at which the measurement takes place,
 // and the time of the measurement.
 type Measurements struct {
-	//	value    float32
-	//	time     time.Time
-	//	gridCell int
 	time      string
 	pollutant string
 	value     string
@@ -68,6 +66,43 @@ func findLatLon(measuredLat string, lat []float32) float32 {
 	return lat[i]
 }
 
+// We also want the measurement time. The GEOS-Chem time
+// variable is in hours since 1985-1-1 00:00:0.0 (including
+// 7 leap days). There are eight records a day, one every
+// three hours, starting from 03:00 (2015-01-01 at 00:00 is
+// 262968 hours since the start time). Z time is reported
+// for both simulation and measurement, I believe; however,
+// the averaging periods of the measurements may differ.
+// For now, I will simply parse the measurement time and
+// assign it to n int, where the nth record in each day of
+// GEOS-Chem simulation corresponds to the time interval.
+func findTime(measuredHour string) int {
+
+	f, err = strconv.Atoi(measuredHour)
+	if err != nil {
+		panic(err)
+	}
+	switch {
+	case f <= 3:
+		return 1
+	case f <= 6:
+		return 2
+	case f <= 9:
+		return 3
+	case f <= 12:
+		return 4
+	case f <= 15:
+		return 5
+	case f <= 18:
+		return 6
+	case f <= 21:
+		return 7
+	case f <= 24:
+		return 8
+	}
+	return 0
+}
+
 // readMeasurements reads the measurement PM2.5 data (value, lat, lon,/ time, and units)
 // from a csv file, and returns the values in
 // time, and units) from a csv file, and returns the values in
@@ -98,7 +133,7 @@ func readMeasurements(csvFolder string) {
 			// for each Measurement, you want to read the time
 			// field, which is in the standard form
 			// [YYYY]-[MM]-[DD]T[HH]:[MM]:[SS].000Z.
-			// you want to parse this to make a string for the
+			// you want to parse this to make a string for thN
 			// NetCDF filename, which is "ts.[YYYY][MM][DD].000000.nc".
 			GEOStimestring := "ts." + line[3][:4] + line[3][6:7] + line[3][9:10] + ".000000.nc"
 
@@ -114,6 +149,7 @@ func readMeasurements(csvFolder string) {
 				GEOStime:  GEOStimestring,
 				GEOSlat:   findLatLon(line[8], lats),
 				GEOSlon:   findLatLon(line[9], lons),
+				GEOShour:  findTime(line[3][12:13]),
 			}
 			fmt.Println(data.latitude + " " + data.longitude + " " + data.value)
 		}
@@ -127,17 +163,56 @@ func readMeasurements(csvFolder string) {
 // find the correct measurement, and add that to the struct too;
 // write the structs to a csv file called "output.csv".
 func writeMeasurements(ms Measurements, csvFolder string) {
+
+	//	ms.pollutant should determine the string, but for now we're only
+	//	concerned with PM2.5, which requires reading NH4, NIT, SO4,
+	//	BCPI, BCPO, OCPI, OCPO, DST1, DST2, SALA, TSOA0, TSOA1, TSOA2,
+	//	TSOA3, ISOA1, ISOA2, ISOA3, ASOAN [which I forgot to write out],
+	//	ASOA1, ASOA2, and ASOA3.
+
 	ff, _ := os.Open(csvFolder + ms.GEOStimestring)
 	f, _ := cdf.Open(ff)
 	defer f.Close()
-	r = f.Reader
+	r = f.Reader(pol)
+
+}
+
+/*
+	time      string
+	pollutant string
+	value     string
+	unit      string
+	latitude  string
+	longitude string
+	GEOSlat float32
+	GEOSlon float32
+	GEOStime string
+	chemValue string
+*/
+
+func csvWriter(ms Measurements) {
+	file, err := os.Create("output.csv")
+	if err != nil {
+		panic(err)
+	}
+
+	writefile := csv.NewWriter(file)
+	defer writer.Flush()
+
+	//	s := make([]string, 0)
+	for _, v := range structs.Values(ms) {
+		//		s = append(s, v.(string))
+		err := writer.Write(v.(string))
+	}
 }
 
 //csvFiles
 //"/home/marshall/sthakrar/2015openaqdata/csvfiles/[DATE].csv",
 
 func main() {
+	csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles/"
 	cm := make(chan Measurements, 1000)
-	go readMeasurements("/home/marshall/sthakrar/2015openaqdata/csvfiles/")
+	go readMeasurements(csvFolder)
+	go writeMeasurements(<-cm, csvFolder)
 
 }
