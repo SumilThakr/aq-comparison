@@ -11,6 +11,8 @@ import (
 	"strconv"
 )
 
+// listFiles will list all the csv files for which there is measurement
+// data from OpenAQ.
 func listFiles(csvFolder string) []string {
 	var csvList []string
 
@@ -24,9 +26,10 @@ func listFiles(csvFolder string) []string {
 	return csvList
 }
 
-// Measurements has measurement data in standard units,
-// the indexed GEOS-Chem grid cell at which the measurement takes place,
-// and the time of the measurement.
+// Measurements has measurement data in standard units, information on
+// the GEOS-Chem grid cell at which the measurement takes place,
+// the time of the measurement, and the corresponding GEOS-Chem
+// simulation value.
 type Measurements struct {
 	time      string
 	pollutant string
@@ -34,12 +37,12 @@ type Measurements struct {
 	unit      string
 	latitude  string
 	longitude string
-	// Add fields for the grid cell ID of the measurement
+	// Fields for the corresponding GEOS-Chem grid cell
 	GEOSlat float32
 	GEOSlon float32
-	// Add a field for the GEOS-Chem simulation time
+	// A field for the corresponding GEOS-Chem simulation time
 	GEOStime string
-	// Add a field here from the simulation data
+	// A field for the simulation data
 	chemValue string
 }
 
@@ -103,20 +106,20 @@ func findTime(measuredHour string) int {
 	return 0
 }
 
-// readMeasurements reads the measurement PM2.5 data (value, lat, lon,/ time, and units)
-// from a csv file, and returns the values in
-// time, and units) from a csv file, and returns the values in
-// standard units, the indexed GEOS-Chem grid cell, and the time.
+// readMeasurements reads the measurement PM2.5 data (value, lat, lon,
+// time, and units) from all csv files in the folder, and returns the
+// values in standard units, the GEOS-Chem grid cell information, and
+// the time.
 func readMeasurements(csvFolder string) {
 
-	// first, list the files in the folder.
+	// List the files in the folder.
 	csvList := listFiles(csvFolder)
 
-	// then, declare a buffered channel for the measurements to go through.
+	// Declare a buffered channel for the measurements to go through.
 	var cm chan Measurements
 
-	// then, open all the files and pass each measurement to the
-	// buffered channel.
+	// Open all the files and pass each measurement to the buffered
+	// channel.
 	for _, filename := range csvList {
 
 		f, err := os.Open(filename)
@@ -130,15 +133,16 @@ func readMeasurements(csvFolder string) {
 		}
 
 		for i, line := range lines {
-			// for each Measurement, you want to read the time
+			// for each Measurement, read the time
 			// field, which is in the standard form
 			// [YYYY]-[MM]-[DD]T[HH]:[MM]:[SS].000Z.
-			// you want to parse this to make a string for thN
-			// NetCDF filename, which is "ts.[YYYY][MM][DD].000000.nc".
+			// you want to parse this to make a string
+			// for the NetCDF filename, which is in
+			// the format "ts.[YYYY][MM][DD].000000.nc".
 			GEOStimestring := "ts." + line[3][:4] + line[3][6:7] + line[3][9:10] + ".000000.nc"
 
-			// Pass the measurements from each csv file to the buffered
-			// channel.
+			// Pass the measurements from each csv file
+			// to the buffered channel.
 			cm <- Measurements{
 				time:      line[3],
 				pollutant: line[5],
@@ -174,7 +178,7 @@ func writeMeasurements(ms Measurements, csvFolder string) {
 	f, _ := cdf.Open(ff)
 	defer f.Close()
 	r = f.Reader(pol)
-
+	// I haven't done this yet
 }
 
 /*
@@ -199,9 +203,7 @@ func csvWriter(ms Measurements) {
 	writefile := csv.NewWriter(file)
 	defer writer.Flush()
 
-	//	s := make([]string, 0)
 	for _, v := range structs.Values(ms) {
-		//		s = append(s, v.(string))
 		err := writer.Write(v.(string))
 	}
 }
@@ -214,5 +216,5 @@ func main() {
 	cm := make(chan Measurements, 1000)
 	go readMeasurements(csvFolder)
 	go writeMeasurements(<-cm, csvFolder)
-
+	// etc.
 }
