@@ -5,9 +5,11 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/fatih/structs"
-	"io/ioutil"
+	//	"io/ioutil" <-- ioutil.ReadDir returns an interface instead of
+	//	[]string, so use path/filepath instead.
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -16,13 +18,22 @@ import (
 func listFiles(csvFolder string) []string {
 	var csvList []string
 
-	files, err := ioutil.ReadDir(csvFolder)
+	err := filepath.Walk(csvFolder, func(path string, info os.FileInfo, err error) error {
+		csvList = append(csvList, path)
+		return nil
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, f := range files {
-		csvList = append(csvList, f)
-	}
+
+	//	files, err := ioutil.ReadDir(csvFolder)
+	//	if err != nil {
+	//		log.Fatal(err)
+	//	}
+	//	for _, f := range files {
+	//		csvList = append(csvList, f)
+	//	}
+
 	return csvList
 }
 
@@ -38,27 +49,49 @@ type Measurements struct {
 	latitude  string
 	longitude string
 	// Fields for the corresponding GEOS-Chem grid cell
-	GEOSlat float32
-	GEOSlon float32
+	GEOSlat float64
+	GEOSlon float64
 	// A field for the corresponding GEOS-Chem simulation time
 	GEOStime string
-	// A field for the simulation data
-	chemValue string
+	GEOShour int
+	//	The PM2.5 chem value calculated from the GEOS-Chem simulation
+	PM25  float32
+	NH4   float32
+	NIT   float32
+	SO4   float32
+	BCPI  float32
+	BCPO  float32
+	OCPI  float32
+	OCPO  float32
+	DST1  float32
+	DST2  float32
+	SALA  float32
+	TSOA0 float32
+	TSOA1 float32
+	TSOA2 float32
+	TSOA3 float32
+	ISOA1 float32
+	ISOA2 float32
+	ISOA3 float32
+	ASOAN float32
+	ASOA1 float32
+	ASOA2 float32
+	ASOA3 float32
 }
 
 // lats are the grid cell latitudes. They should be ordered from
 // smallest to largest.
-var lats = []float32{-89.5, -88, -86, -84, -82, -80, -78, -76, -74, -72, -70, -68, -66, -64, -62, -60, -58, -56, -54, -52, -50, -48, -46, -44, -42, -40, -38, -36, -34, -32, -30, -28, -26, -24, -22, -20, -18, -16, -14, -12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 82, 84, 86, 88, 89.5}
+var lats = []float64{-89.5, -88, -86, -84, -82, -80, -78, -76, -74, -72, -70, -68, -66, -64, -62, -60, -58, -56, -54, -52, -50, -48, -46, -44, -42, -40, -38, -36, -34, -32, -30, -28, -26, -24, -22, -20, -18, -16, -14, -12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 82, 84, 86, 88, 89.5}
 
 // lons are the grid cell longitudes. They should be ordered from
 // smallest to largest.
-var lons = []float32{-180, -177.5, -175, -172.5, -170, -167.5, -165, -162.5, -160, -157.5, -155, -152.5, -150, -147.5, -145, -142.5, -140, -137.5, -135, -132.5, -130, -127.5, -125, -122.5, -120, -117.5, -115, -112.5, -110, -107.5, -105, -102.5, -100, -97.5, -95, -92.5, -90, -87.5, -85, -82.5, -80, -77.5, -75, -72.5, -70, -67.5, -65, -62.5, -60, -57.5, -55, -52.5, -50, -47.5, -45, -42.5, -40, -37.5, -35, -32.5, -30, -27.5, -25, -22.5, -20, -17.5, -15, -12.5, -10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 37.5, 40, 42.5, 45, 47.5, 50, 52.5, 55, 57.5, 60, 62.5, 65, 67.5, 70, 72.5, 75, 77.5, 80, 82.5, 85, 87.5, 90, 92.5, 95, 97.5, 100, 102.5, 105, 107.5, 110, 112.5, 115, 117.5, 120, 122.5, 125, 127.5, 130, 132.5, 135, 137.5, 140, 142.5, 145, 147.5, 150, 152.5, 155, 157.5, 160, 162.5, 165, 167.5, 170, 172.5, 175, 177.5}
+var lons = []float64{-180, -177.5, -175, -172.5, -170, -167.5, -165, -162.5, -160, -157.5, -155, -152.5, -150, -147.5, -145, -142.5, -140, -137.5, -135, -132.5, -130, -127.5, -125, -122.5, -120, -117.5, -115, -112.5, -110, -107.5, -105, -102.5, -100, -97.5, -95, -92.5, -90, -87.5, -85, -82.5, -80, -77.5, -75, -72.5, -70, -67.5, -65, -62.5, -60, -57.5, -55, -52.5, -50, -47.5, -45, -42.5, -40, -37.5, -35, -32.5, -30, -27.5, -25, -22.5, -20, -17.5, -15, -12.5, -10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 37.5, 40, 42.5, 45, 47.5, 50, 52.5, 55, 57.5, 60, 62.5, 65, 67.5, 70, 72.5, 75, 77.5, 80, 82.5, 85, 87.5, 90, 92.5, 95, 97.5, 100, 102.5, 105, 107.5, 110, 112.5, 115, 117.5, 120, 122.5, 125, 127.5, 130, 132.5, 135, 137.5, 140, 142.5, 145, 147.5, 150, 152.5, 155, 157.5, 160, 162.5, 165, 167.5, 170, 172.5, 175, 177.5}
 
 // findLatLon finds the latitude or longitude of the GEOS-Chem
 // simulation grid cell corresponding to the latitude or longitude
 // of the measurement (given as a string).
-func findLatLon(measuredLat string, lat []float32) float32 {
-	f, err = strconv.ParseFloat(measuredLat, 32)
+func findLatLon(measuredLat string, lat []float64) float64 {
+	f, err := strconv.ParseFloat(measuredLat, 64)
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +114,7 @@ func findLatLon(measuredLat string, lat []float32) float32 {
 // GEOS-Chem simulation corresponds to the time interval.
 func findTime(measuredHour string) int {
 
-	f, err = strconv.Atoi(measuredHour)
+	f, err := strconv.Atoi(measuredHour)
 	if err != nil {
 		panic(err)
 	}
@@ -132,7 +165,7 @@ func readMeasurements(csvFolder string) {
 			panic(err)
 		}
 
-		for i, line := range lines {
+		for _, line := range lines {
 			// for each Measurement, read the time
 			// field, which is in the standard form
 			// [YYYY]-[MM]-[DD]T[HH]:[MM]:[SS].000Z.
@@ -155,7 +188,6 @@ func readMeasurements(csvFolder string) {
 				GEOSlon:   findLatLon(line[9], lons),
 				GEOShour:  findTime(line[3][12:13]),
 			}
-			fmt.Println(data.latitude + " " + data.longitude + " " + data.value)
 		}
 		f.Close()
 	}
@@ -166,33 +198,71 @@ func readMeasurements(csvFolder string) {
 // open the NetCDF file associated with each GEOStimestring,
 // find the correct measurement, and add that to the struct too;
 // write the structs to a csv file called "output.csv".
-func writeMeasurements(ms Measurements, csvFolder string) {
+// writeMeasurements takes in the hour, latitude and longitude as
+// integers corresponding to their location in the file. The vertical
+// levels are not inputs because we assume the levels corresponding to
+// the measurements to be at the surface (i.e., 0).
+func writeMeasurements(ms Measurements, chemFolder string) {
 
-	//	ms.pollutant should determine the string, but for now we're only
-	//	concerned with PM2.5, which requires reading NH4, NIT, SO4,
-	//	BCPI, BCPO, OCPI, OCPO, DST1, DST2, SALA, TSOA0, TSOA1, TSOA2,
-	//	TSOA3, ISOA1, ISOA2, ISOA3, ASOAN [which I forgot to write out],
-	//	ASOA1, ASOA2, and ASOA3.
-
-	ff, _ := os.Open(csvFolder + ms.GEOStimestring)
+	ff, _ := os.Open(chemFolder + ms.GEOStime)
+	defer ff.Close()
 	f, _ := cdf.Open(ff)
-	defer f.Close()
-	r = f.Reader(pol)
-	// I haven't done this yet
+
+	ms.ASOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA1")
+	ms.ASOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA2")
+	ms.ASOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA3")
+	ms.ASOAN = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOAN")
+	ms.ISOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA1")
+	ms.ISOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA2")
+	ms.ISOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA3")
+	ms.TSOA0 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA0")
+	ms.TSOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA1")
+	ms.TSOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA2")
+	ms.TSOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA3")
+	ms.DST1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__DST1")
+	ms.DST2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__DST2")
+	ms.SALA = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__SALA")
+	ms.OCPI = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__OCPI")
+	ms.OCPO = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__OCPO")
+	ms.BCPI = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__BCPI")
+	ms.BCPO = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__BCPO")
+	ms.SO4 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__SO4")
+	ms.NIT = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__NIT")
+	ms.NH4 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__NH4")
+
+	ms.PM25 = 1.33*(ms.NH4+ms.NIT+ms.SO4) + ms.BCPI + ms.BCPO + 2.1*(ms.OCPO+1.16*ms.OCPI) + ms.DST1 + 0.38*ms.DST2 + 1.86*ms.SALA + 1.16*(ms.TSOA0+ms.TSOA1+ms.TSOA2+ms.TSOA3+ms.ISOA1+ms.ISOA2+ms.ISOA3+ms.ASOAN+ms.ASOA1+ms.ASOA2+ms.ASOA3)
+
 }
 
-/*
-	time      string
-	pollutant string
-	value     string
-	unit      string
-	latitude  string
-	longitude string
-	GEOSlat float32
-	GEOSlon float32
-	GEOStime string
-	chemValue string
-*/
+func varReading(hour int, lat, lon float64, f *cdf.File, pol string) float32 {
+
+	lev := 0.0
+	indexx := int(lon + lat*47 + lev*144)
+
+	dims := f.Header.Lengths(pol)
+	if len(dims) == 0 {
+		panic(fmt.Errorf("%v isn't on file", pol))
+	}
+	dims = dims[1:]
+	// This is done because the 0th entry in dims is 0.
+	nread := 1
+	for _, dim := range dims {
+		nread *= dim
+	}
+
+	start, end := make([]int, len(dims)+1), make([]int, len(dims)+1)
+	start[0], end[0] = hour, hour+1
+
+	r := f.Reader(pol, start, end)
+	buf := r.Zero(nread)
+	_, err := r.Read(buf)
+	if err != nil {
+		panic(err)
+	}
+	// The following ought to be passed to ms.
+	return buf.([]float32)[indexx]
+
+}
 
 func csvWriter(ms Measurements) {
 	file, err := os.Create("output.csv")
@@ -201,20 +271,20 @@ func csvWriter(ms Measurements) {
 	}
 
 	writefile := csv.NewWriter(file)
-	defer writer.Flush()
+	defer writefile.Flush()
 
 	for _, v := range structs.Values(ms) {
-		err := writer.Write(v.(string))
+		err := writefile.Write(v.([]string))
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
-
-//csvFiles
-//"/home/marshall/sthakrar/2015openaqdata/csvfiles/[DATE].csv",
 
 func main() {
 	csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles/"
 	cm := make(chan Measurements, 1000)
 	go readMeasurements(csvFolder)
-	go writeMeasurements(<-cm, csvFolder)
+	go writeMeasurements(<-cm, "/home/marshall/sthakrar/go/src/github.com/spatialmodel/inmap/cmd/inmap/testdata/preproc/GlobalTestData")
 	// etc.
 }
