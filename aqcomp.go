@@ -11,7 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	//	"sync"
+	//	"time"
 )
+
+//var wg sync.WaitGroup
 
 // listFiles will list all the csv files for which there is measurement
 // data from OpenAQ.
@@ -26,13 +30,9 @@ func listFiles(csvFolder string) []string {
 		log.Fatal(err)
 	}
 
-	//	files, err := ioutil.ReadDir(csvFolder)
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//	for _, f := range files {
-	//		csvList = append(csvList, f)
-	//	}
+	// The first entry in csvList is the directory itself, which we
+	// don't want, so I'm doing the following:
+	csvList = csvList[1:]
 
 	return csvList
 }
@@ -55,28 +55,28 @@ type Measurements struct {
 	GEOStime string
 	GEOShour int
 	//	The PM2.5 chem value calculated from the GEOS-Chem simulation
-	PM25  float32
-	NH4   float32
-	NIT   float32
-	SO4   float32
-	BCPI  float32
-	BCPO  float32
-	OCPI  float32
-	OCPO  float32
-	DST1  float32
-	DST2  float32
-	SALA  float32
-	TSOA0 float32
-	TSOA1 float32
-	TSOA2 float32
-	TSOA3 float32
-	ISOA1 float32
-	ISOA2 float32
-	ISOA3 float32
-	ASOAN float32
-	ASOA1 float32
-	ASOA2 float32
-	ASOA3 float32
+	PM25  float64
+	NH4   float64
+	NIT   float64
+	SO4   float64
+	BCPI  float64
+	BCPO  float64
+	OCPI  float64
+	OCPO  float64
+	DST1  float64
+	DST2  float64
+	SALA  float64
+	TSOA0 float64
+	TSOA1 float64
+	TSOA2 float64
+	TSOA3 float64
+	ISOA1 float64
+	ISOA2 float64
+	ISOA3 float64
+	//	ASOAN float64
+	ASOA1 float64
+	ASOA2 float64
+	ASOA3 float64
 }
 
 // lats are the grid cell latitudes. They should be ordered from
@@ -139,59 +139,69 @@ func findTime(measuredHour string) int {
 	return 0
 }
 
+// Declare a buffered channel for the measurements to go through. It
+// should be declared globally.
+var cm chan Measurements
+
 // readMeasurements reads the measurement PM2.5 data (value, lat, lon,
 // time, and units) from all csv files in the folder, and returns the
 // values in standard units, the GEOS-Chem grid cell information, and
 // the time.
-func readMeasurements(csvFolder string) {
+func readMeasurements(csvFolder string) chan Measurements {
 
 	// List the files in the folder.
 	csvList := listFiles(csvFolder)
 
-	// Declare a buffered channel for the measurements to go through.
-	var cm chan Measurements
+	cm := make(chan Measurements, 10)
 
-	// Open all the files and pass each measurement to the buffered
-	// channel.
-	for _, filename := range csvList {
+	go func() {
+		defer close(cm)
+		// Open all the files and pass each measurement to the buffered
+		// channel.
+		for _, filename := range csvList {
 
-		f, err := os.Open(filename)
-		if err != nil {
-			panic(err)
-		}
-
-		lines, err := csv.NewReader(f).ReadAll()
-		if err != nil {
-			panic(err)
-		}
-
-		for _, line := range lines {
-			// for each Measurement, read the time
-			// field, which is in the standard form
-			// [YYYY]-[MM]-[DD]T[HH]:[MM]:[SS].000Z.
-			// you want to parse this to make a string
-			// for the NetCDF filename, which is in
-			// the format "ts.[YYYY][MM][DD].000000.nc".
-			GEOStimestring := "ts." + line[3][:4] + line[3][6:7] + line[3][9:10] + ".000000.nc"
-
-			// Pass the measurements from each csv file
-			// to the buffered channel.
-			cm <- Measurements{
-				time:      line[3],
-				pollutant: line[5],
-				value:     line[6],
-				unit:      line[7],
-				latitude:  line[8],
-				longitude: line[9],
-				GEOStime:  GEOStimestring,
-				GEOSlat:   findLatLon(line[8], lats),
-				GEOSlon:   findLatLon(line[9], lons),
-				GEOShour:  findTime(line[3][12:13]),
+			f, err := os.Open(filename)
+			if err != nil {
+				panic(err)
 			}
-		}
-		f.Close()
-	}
 
+			lines, err := csv.NewReader(f).ReadAll()
+			if err != nil {
+				panic(err)
+			}
+			// remove the header information
+			lines = lines[1:]
+
+			for _, line := range lines {
+				// for each Measurement, read the time
+				// field, which is in the standard form
+				// [YYYY]-[MM]-[DD]T[HH]:[MM]:[SS].000Z.
+				// you want to parse this to make a string
+				// for the NetCDF filename, which is in
+				// the format "ts.[YYYY][MM][DD].000000.nc".
+
+				GEOStimestring := "ts." + string([]rune(line[3])[:4]) + string([]rune(line[3])[5:7]) + string([]rune(line[3])[8:10]) + ".000000.nc"
+
+				// Pass the measurements from each csv file
+				// to the buffered channel.
+				cm <- Measurements{
+					time:      line[3],
+					pollutant: line[5],
+					value:     line[6],
+					unit:      line[7],
+					latitude:  line[8],
+					longitude: line[9],
+					GEOStime:  GEOStimestring,
+					GEOSlat:   findLatLon(line[8], lats),
+					GEOSlon:   findLatLon(line[9], lons),
+					GEOShour:  findTime(line[3][12:13]),
+				}
+			}
+			f.Close()
+		}
+		//	wg.Done()
+	}()
+	return cm
 }
 
 // writeMeasurements will:
@@ -204,37 +214,51 @@ func readMeasurements(csvFolder string) {
 // the measurements to be at the surface (i.e., 0).
 func writeMeasurements(ms Measurements, chemFolder string) {
 
-	ff, _ := os.Open(chemFolder + ms.GEOStime)
-	defer ff.Close()
-	f, _ := cdf.Open(ff)
+	go func() {
+		ff, err := os.Open(chemFolder + "/" + ms.GEOStime)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer ff.Close()
+		f, err := cdf.Open(ff)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	ms.ASOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA1")
-	ms.ASOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA2")
-	ms.ASOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA3")
-	ms.ASOAN = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOAN")
-	ms.ISOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA1")
-	ms.ISOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA2")
-	ms.ISOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA3")
-	ms.TSOA0 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA0")
-	ms.TSOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA1")
-	ms.TSOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA2")
-	ms.TSOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA3")
-	ms.DST1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__DST1")
-	ms.DST2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__DST2")
-	ms.SALA = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__SALA")
-	ms.OCPI = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__OCPI")
-	ms.OCPO = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__OCPO")
-	ms.BCPI = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__BCPI")
-	ms.BCPO = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__BCPO")
-	ms.SO4 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__SO4")
-	ms.NIT = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__NIT")
-	ms.NH4 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__NH4")
+		ms.ASOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA1")
+		ms.ASOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA2")
+		ms.ASOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA3")
+		//	ms.ASOAN = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOAN")
+		ms.ISOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA1")
+		ms.ISOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA2")
+		ms.ISOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ISOA3")
+		ms.TSOA0 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA0")
+		ms.TSOA1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA1")
+		ms.TSOA2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA2")
+		ms.TSOA3 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__TSOA3")
+		ms.DST1 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__DST1")
+		ms.DST2 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__DST2")
+		ms.SALA = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__SALA")
+		ms.OCPI = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__OCPI")
+		ms.OCPO = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__OCPO")
+		ms.BCPI = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__BCPI")
+		ms.BCPO = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__BCPO")
+		ms.SO4 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__SO4")
+		ms.NIT = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__NIT")
+		ms.NH4 = varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__NH4")
 
-	ms.PM25 = 1.33*(ms.NH4+ms.NIT+ms.SO4) + ms.BCPI + ms.BCPO + 2.1*(ms.OCPO+1.16*ms.OCPI) + ms.DST1 + 0.38*ms.DST2 + 1.86*ms.SALA + 1.16*(ms.TSOA0+ms.TSOA1+ms.TSOA2+ms.TSOA3+ms.ISOA1+ms.ISOA2+ms.ISOA3+ms.ASOAN+ms.ASOA1+ms.ASOA2+ms.ASOA3)
+		// Below is the correct ms.PM25 value. However, I forgot to write
+		// out ASOAN. So I have commented this out and added a new PM2.5
+		// value without ASOAN for now.
+		//ms.PM25 = 1.33*(ms.NH4+ms.NIT+ms.SO4) + ms.BCPI + ms.BCPO + 2.1*(ms.OCPO+1.16*ms.OCPI) + ms.DST1 + 0.38*ms.DST2 + 1.86*ms.SALA + 1.16*(ms.TSOA0+ms.TSOA1+ms.TSOA2+ms.TSOA3+ms.ISOA1+ms.ISOA2+ms.ISOA3+ms.ASOAN+ms.ASOA1+ms.ASOA2+ms.ASOA3)
+		ms.PM25 = 1.33*(ms.NH4+ms.NIT+ms.SO4) + ms.BCPI + ms.BCPO + 2.1*(ms.OCPO+1.16*ms.OCPI) + ms.DST1 + 0.38*ms.DST2 + 1.86*ms.SALA + 1.16*(ms.TSOA0+ms.TSOA1+ms.TSOA2+ms.TSOA3+ms.ISOA1+ms.ISOA2+ms.ISOA3+ms.ASOA1+ms.ASOA2+ms.ASOA3)
 
+		//	wg.Done()
+	}()
+	csvWriter(ms)
 }
 
-func varReading(hour int, lat, lon float64, f *cdf.File, pol string) float32 {
+func varReading(hour int, lat, lon float64, f *cdf.File, pol string) float64 {
 
 	lev := 0.0
 	indexx := int(lon + lat*47 + lev*144)
@@ -260,12 +284,12 @@ func varReading(hour int, lat, lon float64, f *cdf.File, pol string) float32 {
 		panic(err)
 	}
 	// The following ought to be passed to ms.
-	return buf.([]float32)[indexx]
+	return buf.([]float64)[indexx]
 
 }
 
 func csvWriter(ms Measurements) {
-	file, err := os.Create("output.csv")
+	file, err := os.Create("/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/output.csv")
 	if err != nil {
 		panic(err)
 	}
@@ -273,18 +297,41 @@ func csvWriter(ms Measurements) {
 	writefile := csv.NewWriter(file)
 	defer writefile.Flush()
 
+	//maybe define a []string, then loop over the values, if they are
+	//strings, append them to the string, and if they are not strings,
+	//convert them to strings, and th
+	var tWrt []string
+
 	for _, v := range structs.Values(ms) {
-		err := writefile.Write(v.([]string))
-		if err != nil {
-			fmt.Println(err)
+		_, okStr := v.(string)
+		_, okInt := v.(int)
+		_, okFlt64 := v.(float64)
+
+		switch {
+		case okStr:
+			tWrt = append(tWrt, v.(string))
+		case okInt:
+			tWrt = append(tWrt, strconv.Itoa(v.(int)))
+			//		case okFlt32:
+			//			newStr32 := strconv.FormatFloat(v.(float32), 'E', -1, 32)
+			//			tWrt = append(tWrt, newStr32[:len(newStr32)-4])
+		case okFlt64:
+			newStr64 := strconv.FormatFloat(v.(float64), 'E', -1, 64)
+			tWrt = append(tWrt, newStr64[:len(newStr64)-4])
 		}
+	}
+	err2 := writefile.Write(tWrt)
+	if err2 != nil {
+		fmt.Println(err)
 	}
 }
 
 func main() {
-	csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles/"
-	cm := make(chan Measurements, 1000)
-	go readMeasurements(csvFolder)
-	go writeMeasurements(<-cm, "/home/marshall/sthakrar/go/src/github.com/spatialmodel/inmap/cmd/inmap/testdata/preproc/GlobalTestData")
-	// etc.
+	csvFolder := "/home/marshall/sthakrar/2015openaqdata/testcsvs/"
+	//	cm := make(chan Measurements, 100)
+	//	wg.Add(1)
+	ch := readMeasurements(csvFolder)
+	//	wg.Wait()
+	writeMeasurements(<-ch, "/home/hill0408/sthakrar/Runs/globnosoan")
+	//	wg.Wait()
 }
