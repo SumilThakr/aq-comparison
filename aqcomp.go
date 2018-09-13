@@ -4,6 +4,7 @@ import (
 	"bitbucket.org/ctessum/cdf"
 	"encoding/csv"
 	"fmt"
+	"math"
 	//	"github.com/fatih/structs"
 	//	"io/ioutil" <-- ioutil.ReadDir returns an interface instead of
 	//	[]string, so use path/filepath instead.
@@ -90,16 +91,22 @@ var lons = []float64{-180, -177.5, -175, -172.5, -170, -167.5, -165, -162.5, -16
 // findLatLon finds the latitude or longitude of the GEOS-Chem
 // simulation grid cell corresponding to the latitude or longitude
 // of the measurement (given as a string).
-func findLatLon(measuredLat string, lat []float64) float64 {
+func findLatLon(measuredLat string, lat []float64) (float64, error) {
 	f, err := strconv.ParseFloat(measuredLat, 64)
 	if err != nil {
 		panic(err)
 	}
+
+	if math.Abs(f) > lat[len(lat)-1] {
+		return 0, fmt.Errorf("the latitude or longitude is out of bounds")
+	}
+
 	i := len(lat) - 1
 	for f < lat[i] {
 		i -= 1
 	}
-	return lat[i]
+	return lat[i], nil
+
 }
 
 // We also want the measurement time. The GEOS-Chem time
@@ -112,31 +119,31 @@ func findLatLon(measuredLat string, lat []float64) float64 {
 // For now, I will simply parse the measurement time and
 // assign it to n int, where the nth record in each day of
 // GEOS-Chem simulation corresponds to the time interval.
-func findTime(measuredHour string) int {
+func findTime(measuredHour string) (int, error) {
 
 	f, err := strconv.Atoi(measuredHour)
 	if err != nil {
 		panic(err)
 	}
 	switch {
-	case f <= 3:
-		return 1
+	case f >= 0 && f <= 3:
+		return 1, nil
 	case f <= 6:
-		return 2
+		return 2, nil
 	case f <= 9:
-		return 3
+		return 3, nil
 	case f <= 12:
-		return 4
+		return 4, nil
 	case f <= 15:
-		return 5
+		return 5, nil
 	case f <= 18:
-		return 6
+		return 6, nil
 	case f <= 21:
-		return 7
+		return 7, nil
 	case f <= 24:
-		return 8
+		return 8, nil
 	}
-	return 0
+	return 0, fmt.Errorf("time is not between 0 and 24")
 }
 
 // Declare a buffered channel for the measurements to go through. It
@@ -153,7 +160,7 @@ func readMeasurements(csvFolder string) chan Measurements {
 	csvList := listFiles(csvFolder)
 
 	cm := make(chan Measurements, 1000)
-	defer close(cm)
+	//	defer close(cm)
 
 	go func() {
 		// Open all the files and pass each measurement to the buffered
@@ -186,6 +193,21 @@ func readMeasurements(csvFolder string) chan Measurements {
 
 					GEOStimestring := "ts." + string([]rune(line[3])[:4]) + string([]rune(line[3])[5:7]) + string([]rune(line[3])[8:10]) + ".000000.nc"
 
+					foundTime, err := findTime(line[3][12:13])
+					if err != nil {
+						panic(err)
+					}
+
+					foundLat, err := findLatLon(line[8], lats)
+					if err != nil {
+						panic(err)
+					}
+
+					foundLon, err := findLatLon(line[9], lons)
+					if err != nil {
+						panic(err)
+					}
+
 					// Pass the measurements from each csv file
 					// to the buffered channel.
 					cm <- Measurements{
@@ -196,9 +218,9 @@ func readMeasurements(csvFolder string) chan Measurements {
 						Latitude:  line[8],
 						Longitude: line[9],
 						GEOStime:  GEOStimestring,
-						GEOSlat:   findLatLon(line[8], lats),
-						GEOSlon:   findLatLon(line[9], lons),
-						GEOShour:  findTime(line[3][12:13]),
+						GEOSlat:   foundLat,
+						GEOSlon:   foundLon,
+						GEOShour:  foundTime,
 					}
 				} else {
 					fmt.Printf("%s\n", line[5])
@@ -262,34 +284,7 @@ func writeMeasurements(ms Measurements, chemFolder string) {
 
 	// Below is the correct ms.PM25 value. However, I forgot to write
 	// out ASOAN. So I have commented this out and added a new PM2.5
-	// value without ASOAN for now. ALSO actually this should be in
-	// ug/m3 instead of ppbv. For simplicity for now, use molar mass of
-	// dry air (28.97 g/mol) and the molecular weights of the tracers
-	// from geoschem.go are all 150 g/mol.
-	//
-	// ppbv = V(PM2.5)*10E9/V(air) = mol(PM2.5)*10E9/mol(air).
-	//
-	//
-	//
-	//
-	//	Convert ppbv to ug/m3
-
-	// NH4_ugm3 = *ppb_ugm3 * MWaer(0)
-	// NIT_ugm3 = ms.NIT * ppb_ugm3 * MWaer(3)
-	// SO4_ugm3 = SO4(indlon, indlat, 0) * ppb_ugm3 * MWaer(4)
-	// BCPI_ugm3 = BCi(indlon, indlat, 0) * ppb_ugm3 * MWaer(1)
-	// OCPI_ugm3 = OCi(indlon, indlat, 0) * ppb_ugm3 * MWaer(2)
-	// BCPO_ugm3 = BCo(indlon, indlat, 0) * ppb_ugm3 * MWaer(1)
-	// OCPO_ugm3 = OCo(indlon, indlat, 0) * ppb_ugm3 * MWaer(2)
-	// DST1_ugm3 = Dst1(indlon, indlat, 0) * ppb_ugm3 * MWaer(5)
-	// DST2_ugm3 = Dst2(indlon, indlat, 0) * ppb_ugm3 * MWaer(5)
-	// SALA_ugm3 = SALA(indlon, indlat, 0) * ppb_ugm3 * MWaer(6)
-
-	//	Compute PM2.5
-	// PM25 = 1.33*(NH4_ugm3+NIT_ugm3+SO4_ugm3) + &(BCPI_ugm3 + BCPO_ugm3) + 2.1*(1.16*OCPI_ugm3+OCPO_ugm3) + &1.16*SOA_ugm3 + DST1_ugm3 + (0.38 * DST2_ugm3) + (1.86 * SALA_ugm3)
-	//
-	//
-	//
+	// value without ASOAN for now.
 	//ms.PM25 = 1.33*(ms.NH4+ms.NIT+ms.SO4) + ms.BCPI + ms.BCPO +
 	//2.1*(ms.OCPO+1.16*ms.OCPI) + ms.DST1 + 0.38*ms.DST2 + 1.86*ms.SALA + 1.16*(ms.TSOA0+ms.TSOA1+ms.TSOA2+ms.TSOA3+ms.ISOA1+ms.ISOA2+ms.ISOA3+ms.ASOAN+ms.ASOA1+ms.ASOA2+ms.ASOA3)
 	ms.PM25 = 1.33*(ms.NH4+ms.NIT+ms.SO4) + ms.BCPI + ms.BCPO + 2.1*(ms.OCPO+1.16*ms.OCPI) + ms.DST1 + 0.38*ms.DST2 + 1.86*ms.SALA + 1.16*(ms.TSOA0+ms.TSOA1+ms.TSOA2+ms.TSOA3+ms.ISOA1+ms.ISOA2+ms.ISOA3+ms.ASOA1+ms.ASOA2+ms.ASOA3)
@@ -380,6 +375,7 @@ func main() {
 		case v, ok := <-ch:
 			if !ok {
 				ch = nil
+				break
 			}
 			go writeMeasurements(v, "/home/hill0408/sthakrar/Runs/globnosoan")
 		}
