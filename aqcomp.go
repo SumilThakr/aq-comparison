@@ -13,10 +13,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	//"time"
+	"time"
 )
 
-var wg sync.WaitGroup
+var rwg sync.WaitGroup
+var wwg sync.WaitGroup
 
 // listFiles will list all the csv files for which there is measurement
 // data from OpenAQ.
@@ -49,9 +50,10 @@ type Measurements struct {
 	Unit      string
 	Latitude  string
 	Longitude string
-	// Fields for the corresponding GEOS-Chem grid cell
-	GEOSlat float64
-	GEOSlon float64
+	// Fields for the corresponding GEOS-Chem grid cell (indices not
+	// actual lat lon)
+	GEOSlat int
+	GEOSlon int
 	// A field for the corresponding GEOS-Chem simulation time
 	GEOStime string
 	GEOShour int
@@ -90,8 +92,9 @@ var lons = []float64{-180, -177.5, -175, -172.5, -170, -167.5, -165, -162.5, -16
 
 // findLatLon finds the latitude or longitude of the GEOS-Chem
 // simulation grid cell corresponding to the latitude or longitude
-// of the measurement (given as a string).
-func findLatLon(measuredLat string, lat []float64) (float64, error) {
+// of the measurement (given as a string). It shouldn't return the lat
+// or long though: it should return the corresponding index of the []float64.
+func findLatLon(measuredLat string, lat []float64) (int, error) {
 
 	f, err := strconv.ParseFloat(measuredLat, 64)
 	if err != nil {
@@ -106,8 +109,9 @@ func findLatLon(measuredLat string, lat []float64) (float64, error) {
 	for f < lat[i] {
 		i -= 1
 	}
-	return lat[i], nil
-
+	// This is wrong:
+	//return lat[i], nil
+	return i, nil
 }
 
 // We also want the measurement time. The GEOS-Chem time
@@ -144,26 +148,23 @@ func findTime(measuredHour string) (int, error) {
 	case f <= 24:
 		return 8, nil
 	}
-	return 0, fmt.Errorf("time is not between 0 and 24")
+	return 1, fmt.Errorf("time is not between 0 and 24")
 }
 
-// Declare a buffered channel for the measurements to go through. It
-// should be declared globally.
-var cm chan Measurements
+// Declare a buffered channel for the measurements to go through.
+//var cm chan Measurements
 
 // readMeasurements reads the measurement PM2.5 data (value, lat, lon,
 // time, and units) from all csv files in the folder, and returns the
 // values in standard units, the GEOS-Chem grid cell information, and
 // the time.
-func readMeasurements(csvFolder string) chan Measurements {
+func readMeasurements(csvFolder string, cm chan Measurements) {
 
 	// List the files in the folder.
 	csvList := listFiles(csvFolder)
 
-	cm := make(chan Measurements, 100)
-	//	defer close(cm)
-
 	go func() {
+		rwg.Add(1)
 		// Open all the files and pass each measurement to the buffered
 		// channel.
 		for _, filename := range csvList {
@@ -190,6 +191,7 @@ func readMeasurements(csvFolder string) chan Measurements {
 				foundLon, errLon := findLatLon(line[9], lons)
 
 				if line[5] == "pm25" && errTime == nil && errLat == nil && errLon == nil {
+					wwg.Add(1)
 
 					// for each Measurement, read the time
 					// field, which is in the standard form
@@ -202,7 +204,6 @@ func readMeasurements(csvFolder string) chan Measurements {
 
 					// Pass the measurements from each csv file
 					// to the buffered channel.
-					wg.Add(1)
 					// fmt.Printf("adding line %s from file %s to wait group", line, filename)
 					cm <- Measurements{
 						Time:      line[3],
@@ -217,13 +218,13 @@ func readMeasurements(csvFolder string) chan Measurements {
 						GEOShour:  foundTime,
 					}
 				} else {
-					//					fmt.Printf("%s\n", line[5])
+					fmt.Printf("%s\n", line[5])
 				}
 			}
 			f.Close()
 		}
+		rwg.Done()
 	}()
-	return cm
 }
 
 var tWrt []string
@@ -253,6 +254,11 @@ func writeMeasurements(ms Measurements, chemFolder string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Println(ms.GEOShour)
+	fmt.Println(ms.GEOSlat)
+	fmt.Println(ms.GEOSlon)
+	fmt.Println(ms.GEOStime)
 
 	ms.ASOA1 = ppb_ugm3 * MWaer[7] * varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA1")
 	ms.ASOA2 = ppb_ugm3 * MWaer[7] * varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA2")
@@ -310,12 +316,13 @@ func writeMeasurements(ms Measurements, chemFolder string) {
 	*/
 	tWrt = append(tWrt, ms.Value, fmt.Sprintf("%f", ms.PM25))
 
-	wg.Done()
+	wwg.Done()
 }
 
-func varReading(hour int, lat, lon float64, f *cdf.File, pol string) float32 {
+func varReading(hour, lat, lon int, f *cdf.File, pol string) float32 {
 
-	lev := 0.0
+	lev := 0
+	// This can't be right:
 	indexx := int(lon + lat*47 + lev*144)
 
 	dims := f.Header.Lengths(pol)
@@ -339,6 +346,7 @@ func varReading(hour int, lat, lon float64, f *cdf.File, pol string) float32 {
 		panic(err)
 	}
 	// The following ought to be passed to ms.
+	// fmt.Println(indexx)
 	return buf.([]float32)[indexx]
 
 }
@@ -361,26 +369,35 @@ func csvWriter(tWrt []string) {
 
 func main() {
 	csvFolder := "/home/marshall/sthakrar/2015openaqdata/testcsvs1/"
-	ch := readMeasurements(csvFolder)
-	//	for i := 0; i < 950; i++ {
-loop:
-	for {
-		select {
-		//	case v := <-ch:
-		case v, ok := <-ch:
-			if !ok {
-				ch = nil
-				break loop
-			}
-			go writeMeasurements(v, "/home/hill0408/sthakrar/Runs/globnosoan")
-			fmt.Println(v.GEOSlat)
-			fmt.Println(v.GEOSlon)
-			fmt.Println(v.GEOShour)
-			// wg.Done()
-		}
-	}
-	// wg.Wait()
-	//time.Sleep(20 * time.Second)
-	csvWriter(tWrt)
+	ch := make(chan Measurements, 1000)
+	//	defer close(ch)
+	readMeasurements(csvFolder, ch)
+	rwg.Wait()
+	time.Sleep(5 * time.Second)
 	close(ch)
+	//	for i := 0; i < 950; i++ {
+	//loop:
+	//	for {
+	//		select {
+	//	case v := <-ch:
+	//		case v, ok := <-ch:
+	//			if !ok {
+	//				ch = nil
+	//				break loop
+	//			}
+	//			go writeMeasurements(v, "/home/hill0408/sthakrar/Runs/globnosoan")
+	//			fmt.Println(v.GEOSlat)
+	//			fmt.Println(v.GEOSlon)
+	//			fmt.Println(v.GEOShour)
+	// wg.Done()
+	//		}
+	//	}
+	for ms := range ch {
+		writeMeasurements(ms, "/home/hill0408/sthakrar/Runs/globnosoan")
+		//		fmt.Println(ms.GEOSlat)
+	}
+	//rwg.Wait()
+	//time.Sleep(5 * time.Second)
+	wwg.Wait()
+	csvWriter(tWrt)
 }
