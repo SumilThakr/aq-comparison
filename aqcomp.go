@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"time"
+	//"time"
 )
 
 var rwg sync.WaitGroup
@@ -370,11 +370,11 @@ func csvWriter(tWrt []string) {
 func main() {
 	csvFolder := "/home/marshall/sthakrar/2015openaqdata/testcsvs1/"
 	ch := make(chan Measurements, 1000)
-	//	defer close(ch)
+
 	readMeasurements(csvFolder, ch)
-	rwg.Wait()
-	time.Sleep(5 * time.Second)
-	close(ch)
+	//rwg.Wait()
+	//	time.Sleep(5 * time.Second)
+	//close(ch)
 	//	for i := 0; i < 950; i++ {
 	//loop:
 	//	for {
@@ -396,7 +396,8 @@ func main() {
 		writeMeasurements(ms, "/home/hill0408/sthakrar/Runs/globnosoan")
 		//		fmt.Println(ms.GEOSlat)
 	}
-	//rwg.Wait()
+	rwg.Wait()
+	close(ch)
 	//time.Sleep(5 * time.Second)
 	wwg.Wait()
 	csvWriter(tWrt)
