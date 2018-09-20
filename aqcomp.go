@@ -368,8 +368,8 @@ func csvWriter(tWrt []string) {
 }
 
 func main() {
-	csvFolder := "/home/marshall/sthakrar/2015openaqdata/testcsvs1/"
-	ch := make(chan Measurements, 1000)
+	csvFolder := "/home/marshall/sthakrar/2015openaqdata/testcsvs2/"
+	ch := make(chan Measurements, 20)
 
 	readMeasurements(csvFolder, ch)
 	//rwg.Wait()
@@ -393,7 +393,7 @@ func main() {
 	//		}
 	//	}
 	for ms := range ch {
-		writeMeasurements(ms, "/home/hill0408/sthakrar/Runs/globnosoan")
+		go writeMeasurements(ms, "/home/hill0408/sthakrar/Runs/globnosoan")
 		//		fmt.Println(ms.GEOSlat)
 	}
 	rwg.Wait()
