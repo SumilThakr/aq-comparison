@@ -255,9 +255,9 @@ func writeMeasurements(ms Measurements, chemFolder string) {
 		log.Fatal(err)
 	}
 
-	fmt.Println(ms.GEOShour)
-	fmt.Println(ms.GEOSlat)
-	fmt.Println(ms.GEOSlon)
+	//fmt.Println(ms.GEOShour)
+	//fmt.Println(ms.GEOSlat)
+	//fmt.Println(ms.GEOSlon)
 	fmt.Println(ms.GEOStime)
 
 	ms.ASOA1 = ppb_ugm3 * MWaer[7] * varReading(ms.GEOShour, ms.GEOSlat, ms.GEOSlon, f, "IJ_AVG_S__ASOA1")
@@ -369,8 +369,9 @@ func csvWriter(tWrt []string) {
 
 func main() {
 	csvFolder := "/home/marshall/sthakrar/2015openaqdata/testcsvs2/"
-	ch := make(chan Measurements, 20)
 
+	ch := make(chan Measurements, 150)
+	//defer close(ch)
 	readMeasurements(csvFolder, ch)
 	//rwg.Wait()
 	//	time.Sleep(5 * time.Second)
@@ -392,12 +393,13 @@ func main() {
 	// wg.Done()
 	//		}
 	//	}
+	// This will keep waiting until ch is closed and then gridlock. So
+	// it must be closed before this finishes.
 	for ms := range ch {
 		go writeMeasurements(ms, "/home/hill0408/sthakrar/Runs/globnosoan")
 		//		fmt.Println(ms.GEOSlat)
 	}
-	rwg.Wait()
-	close(ch)
+	//rwg.Wait()
 	//time.Sleep(5 * time.Second)
 	wwg.Wait()
 	csvWriter(tWrt)

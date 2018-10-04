@@ -17,8 +17,6 @@ cd /home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/
 #date
 #time
 
-#time ./geos > ./aqcomprun.log
-
 # show when run finished
 #date
 

@@ -1,0 +1,10 @@
+location,city,country,utc,local,parameter,value,unit,latitude,longitude,attribution
+Haringey Roadside,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,pm25,13,µg/m³,51.5993,-0.068218,
+London Harlington,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,o3,3,µg/m³,51.48879,-0.441614,
+London Marylebone Road,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,o3,3,µg/m³,51.52253,-0.154611,
+Southwark A2 Old Kent Road,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,pm10,17,µg/m³,51.480499,-0.05955,
+Camden Kerbside,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,pm10,16,µg/m³,51.54421,-0.175269,
+London Bloomsbury,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,o3,18,µg/m³,51.52229,-0.125889,
+London Marylebone Road,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,pm25,16,µg/m³,51.52253,-0.154611,
+London Westminster,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,no2,62,µg/m³,51.49467,-0.131931,
+Camden Kerbside,London,GB,2015-08-30T00:00:00.000Z,2015-08-30T01:00:00+01:00,pm25,12,µg/m³,51.54421,-0.175269,
