@@ -292,12 +292,15 @@ func main() {
 	// For some folder, list the files. The definition of the folder, as
 	// of now, ends with a backslash. Ideally, this would allow for this to
 	// be missing.
-	csvFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testfiles/threedays/"
+	csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles"
+	// Test folder is the following:
+	//csvFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testfiles/threedays/"
 	ncfFolder := "/home/hill0408/sthakrar/Runs/globnosoan/"
 	outputFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/output/"
 
 	mss := initMs(csvFolder, ncfFolder)
 	for _, i := range mss {
+		fmt.Println("Getting results for: %s", i.csvPath)
 		var tWrt []XY
 		results, err := initResults(i)
 		if err != nil {
