@@ -292,11 +292,11 @@ func main() {
 	// For some folder, list the files. The definition of the folder, as
 	// of now, ends with a backslash. Ideally, this would allow for this to
 	// be missing.
-	csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles"
+	//csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles"
 	// Test folder is the following:
-	//csvFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testfiles/threedays/"
+	csvFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testfiles/"
 	ncfFolder := "/home/hill0408/sthakrar/Runs/globnosoan/"
-	outputFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/output/"
+	outputFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testoutput/"
 
 	mss := initMs(csvFolder, ncfFolder)
 	for _, i := range mss {
@@ -315,6 +315,22 @@ func main() {
 			log.Fatal(errWrite)
 		}
 
+	}
+
+	// *************************************************************************
+	// *************************************************************************
+	//                             SCATTER PLOTS
+	// *************************************************************************
+	// *************************************************************************
+
+	xys, err := readDataConcat(outputFolder)
+	if err != nil {
+		log.Fatalf("could not read data.txt: %v", err)
+	}
+
+	err = plotData(outputFolder+"out.png", xys)
+	if err != nil {
+		log.Fatalf("could not plot data: %v", err)
 	}
 
 }

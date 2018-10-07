@@ -1,0 +1,3 @@
+location,city,country,utc,local,parameter,value,unit,latitude,longitude,attribution
+Escuela E-10,Tocopilla,CL,2015-11-20T00:00:00.000Z,2015-11-19T21:00:00-03:00,pm25,0,µg/m³,-22.087,-70.193253,"[{""name"":""SINCA"",""url"":""http://sinca.mma.gob.cl/""},{""name"":""Electroandina S.A.""}]"
+Bukhiin urguu,Ulaanbaatar,MN,2015-11-20T23:45:00.000Z,2015-11-21T07:45:00+08:00,pm25,115,µg/m³,47.9176056,106.9373611,"[{""name"":""Agaar.mn"",""url"":""http://agaar.mn/""},{""name"":""National Agency of Meteorology and Environmental Monitoring"",""url"":""http://namem.gov.mn""}]"

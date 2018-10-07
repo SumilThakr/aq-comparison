@@ -1,0 +1,5 @@
+location,city,country,utc,local,parameter,value,unit,latitude,longitude,attribution
+Shenyang,Shenyang,CN,2015-11-21T00:00:00.000Z,2015-11-21T08:00:00+08:00,pm25,102,µg/m³,41.78,123.42,
+Guangzhou,Guangzhou,CN,2015-11-21T00:00:00.000Z,2015-11-21T08:00:00+08:00,pm25,50,µg/m³,23.12,113.32,
+Chengdu,Chengdu,CN,2015-11-21T00:00:00.000Z,2015-11-21T08:00:00+08:00,pm25,72,µg/m³,30.63,104.07,
+Shanghai,Shanghai,CN,2015-11-21T00:00:00.000Z,2015-11-21T08:00:00+08:00,pm25,29,µg/m³,31.21,121.44,
