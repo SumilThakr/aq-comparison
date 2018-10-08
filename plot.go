@@ -43,7 +43,7 @@ func plotData(path string, xys []xy) error {
 
 	pxys := make(plotter.XYs, len(xys))
 	for i, xy := range xys {
-		if xy.x > 0 && xy.y > 0 && xy.x < 80 && xy.y < 160 {
+		if xy.x > 0 && xy.y > 0 && xy.x < 80 && xy.y < 80 {
 			pxys[i].X = xy.x
 			pxys[i].Y = xy.y
 		}
@@ -68,7 +68,7 @@ func plotData(path string, xys []xy) error {
 	p.Add(l)
 
 	// number of pixels and image format
-	wt, err := p.WriterTo(8192, 8192, "pdf")
+	wt, err := p.WriterTo(4096, 4096, "pdf")
 	if err != nil {
 		return fmt.Errorf("could not create writer: %v", err)
 	}
@@ -181,7 +181,7 @@ func readDataConcat(csvFolder string) ([]xy, error) {
 		}
 	}
 
-	errTwo := writeDataConcat("/testoutputfiles/concatResults.csv", xys)
+	errTwo := writeDataConcat("concatResults.csv", xys)
 	if errTwo != nil {
 		return xys, errTwo
 	}

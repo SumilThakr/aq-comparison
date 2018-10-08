@@ -1,0 +1,23 @@
+#!/bin/bash -l
+
+#PBS -N aqcomp
+#PBS -l nodes=1:ppn=8
+#PBS -l walltime=12:00:00
+
+#PBS -j oe
+#PBS -m abe
+#PBS -M sthakrar@umn.edu
+#=================================================
+
+cd /home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/
+
+./aqcomp
+
+#ulimit
+#date
+#time
+
+# show when run finished
+#date
+
+exit 0

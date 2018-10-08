@@ -292,31 +292,35 @@ func main() {
 	// For some folder, list the files. The definition of the folder, as
 	// of now, ends with a backslash. Ideally, this would allow for this to
 	// be missing.
-	//csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles"
-	// Test folder is the following:
-	csvFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testfiles/"
-	ncfFolder := "/home/hill0408/sthakrar/Runs/globnosoan/"
-	outputFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testoutput/"
+	/*
+		csvFolder := "/home/marshall/sthakrar/2015openaqdata/csvfiles"
+		// Test folder is the following:
+		//csvFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testfiles/"
+		ncfFolder := "/home/hill0408/sthakrar/Runs/globnosoan/"
+	*/
+	outputFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/output/"
+	// Test output folder is the following:
+	//outputFolder := "/home/marshall/sthakrar/go/src/github.com/SumilThakr/aqcomp/testoutput/"
+	/*
+		mss := initMs(csvFolder, ncfFolder)
+		for _, i := range mss {
+			fmt.Println("Getting results for: %s", i.csvPath)
+			var tWrt []XY
+			results, err := initResults(i)
+			if err != nil {
+				fmt.Println(err)
+			}
+			i.results = results
+			for _, vals := range i.results {
+				tWrt = append(tWrt, XY{vals.simulatedPM, vals.measuredPM})
+			}
+			errWrite := csvWriter(outputFolder+i.date.Format("20060102")+".csv", tWrt)
+			if errWrite != nil {
+				log.Fatal(errWrite)
+			}
 
-	mss := initMs(csvFolder, ncfFolder)
-	for _, i := range mss {
-		fmt.Println("Getting results for: %s", i.csvPath)
-		var tWrt []XY
-		results, err := initResults(i)
-		if err != nil {
-			fmt.Println(err)
 		}
-		i.results = results
-		for _, vals := range i.results {
-			tWrt = append(tWrt, XY{vals.simulatedPM, vals.measuredPM})
-		}
-		errWrite := csvWriter(outputFolder+i.date.Format("20060102")+".csv", tWrt)
-		if errWrite != nil {
-			log.Fatal(errWrite)
-		}
-
-	}
-
+	*/
 	// *************************************************************************
 	// *************************************************************************
 	//                             SCATTER PLOTS
@@ -328,9 +332,26 @@ func main() {
 		log.Fatalf("could not read data.txt: %v", err)
 	}
 
-	err = plotData(outputFolder+"out.png", xys)
+	err = plotData(outputFolder+"out.pdf", xys)
 	if err != nil {
 		log.Fatalf("could not plot data: %v", err)
 	}
+
+	mb, errStat := meanBias(xys)
+	me, _ := meanError(xys)
+	rmserr, _ := rmse(xys)
+	fracB, _ := fracBias(xys)
+	fracE, _ := fracError(xys)
+	nmb, _ := normMeanBias(xys)
+	nme, _ := normMeanError(xys)
+	mnb, _ := meanNormBias(xys)
+	mne, _ := meanNormError(xys)
+	upa, _ := unpairedPeakAcc(xys)
+	ioa, _ := indexOfAgr(xys)
+	cod, _ := coefDeterm(xys)
+	if errStat != nil {
+		fmt.Println(errStat)
+	}
+	fmt.Printf("Mean bias: %f\n Mean error: %f\n RMSE:%f\n Fractional bias: %f\n Fractional error: %f\n Normalised mean bias: %f\n Normalised mean error: %f\n Mean normalised bias: %f\n Mean normalised error: %f\n Unpaired peak accuracy: %f\n Index of Agreement:%f\n Coefficient of determination: %f\n", mb, me, rmserr, fracB, fracE, nmb, nme, mnb, mne, upa, ioa, cod)
 
 }
